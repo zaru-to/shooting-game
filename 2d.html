@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RETRO SPACE SHOOTER - レトロドット絵シューティング</title>
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code Generator library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Google Fonts for Retro Style -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'DotGothic16', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            background-color: #0d0f18;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        .font-pixel {
+            font-family: 'Press Start 2P', monospace;
+        }
+        canvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background: #05050a;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+        }
+        /* Custom UI Buttons */
+        .pixel-btn {
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            border: 3px solid #60a5fa;
+            box-shadow: 0 4px 0 #1e40af, inset 0 2px 0 rgba(255,255,255,0.4);
+            transition: all 0.1s ease;
+        }
+        .pixel-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #1e40af;
+        }
+        .pixel-btn-action {
+            background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+            border: 3px solid #fca5a5;
+            box-shadow: 0 6px 0 #991b1b, inset 0 2px 0 rgba(255,255,255,0.4);
+        }
+        .pixel-btn-action:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #991b1b;
+        }
+        .modal-bg {
+            background-color: rgba(10, 10, 20, 0.88);
+            backdrop-filter: blur(4px);
+        }
+        /* Touch friendly fixes */
+        input, button {
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between items-center relative select-none">
+
+    <!-- GAME CANVAS CONTAINER -->
+    <div id="game-container" class="relative w-full max-w-lg h-full flex flex-col justify-center items-center overflow-hidden">
+        
+        <!-- HEADER HUD (Score & Timer) -->
+        <div id="hud" class="absolute top-2 left-0 right-0 px-4 flex justify-between items-center z-10 hidden">
+            <div class="bg-slate-900/80 border-2 border-cyan-500 rounded-lg px-3 py-1 text-cyan-400 font-pixel text-sm flex items-center gap-2">
+                <i class="fas fa-trophy text-yellow-400"></i>
+                <span id="hud-score">0000</span>
+            </div>
+            <div id="combo-display" class="font-pixel text-yellow-400 text-xs hidden animate-bounce">
+                <span id="combo-count">2</span>x COMBO!
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="bg-slate-900/80 border-2 border-pink-500 rounded-lg px-3 py-1 text-pink-400 font-pixel text-sm flex items-center gap-2">
+                    <i class="fas fa-clock text-pink-400"></i>
+                    <span id="hud-timer">60s</span>
+                </div>
+                <!-- ポーズボタン -->
+                <button id="btn-pause" class="bg-slate-900/80 hover:bg-slate-800 border-2 border-yellow-500 rounded-lg px-3 py-1 text-yellow-400 font-bold text-sm active:scale-95 flex items-center justify-center">
+                    <i class="fas fa-pause"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- CANVAS -->
+        <canvas id="gameCanvas" class="w-full h-full object-contain border-x-0 md:border-x-4 border-cyan-900/50"></canvas>
+
+        <!-- PAUSE OVERLAY -->
+        <div id="screen-pause" class="absolute inset-0 modal-bg flex flex-col justify-center items-center p-6 z-20 hidden">
+            <div class="bg-slate-900/95 border-2 border-yellow-500/80 rounded-xl p-6 w-full max-w-xs text-center shadow-2xl space-y-4">
+                <h2 class="text-2xl font-bold font-pixel text-yellow-400 flex items-center justify-center gap-2">
+                    <i class="fas fa-pause-circle"></i> PAUSE
+                </h2>
+                <p class="text-xs text-gray-300">ゲームが一時停止しています</p>
+                
+                <div class="space-y-3 pt-2">
+                    <button id="btn-resume" class="pixel-btn w-full py-3 text-md font-bold text-white rounded-lg flex items-center justify-center gap-2">
+                        <i class="fas fa-play"></i> ゲームを再開
+                    </button>
+                    <button id="btn-giveup" class="bg-red-900/80 hover:bg-red-800 border border-red-500 w-full py-2.5 rounded-lg text-xs font-bold text-red-200 flex items-center justify-center gap-2">
+                        <i class="fas fa-sign-out-alt"></i> 途中で終了する (タイトルへ)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOUCH CONTROLS (Mobile overlay) -->
+        <div id="touch-controls" class="absolute bottom-4 left-0 right-0 px-6 flex justify-between items-center z-10 hidden md:hidden">
+            <div class="text-xs text-gray-400 bg-slate-900/70 p-2 rounded border border-gray-700">
+                <i class="fas fa-arrows-left-right text-cyan-400"></i> 左右スワイプ: 移動
+            </div>
+            <button id="btn-fire" class="pixel-btn-action w-24 h-24 rounded-full font-pixel text-lg font-bold text-white flex items-center justify-center active:scale-95">
+                発射
+            </button>
+        </div>
+
+        <!-- TITLE SCREEN OVERLAY -->
+        <div id="screen-title" class="absolute inset-0 modal-bg flex flex-col justify-between items-center p-6 z-20">
+            <div class="text-center mt-6">
+                <div class="inline-block px-3 py-1 bg-cyan-950 text-cyan-400 border border-cyan-500 text-xs rounded mb-2 font-pixel">
+                    2D RETRO SHOOTING
+                </div>
+                <h1 class="text-3xl sm:text-4xl font-bold font-pixel text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-pink-500 to-yellow-400 drop-shadow-md">
+                    SPACE<br>TARGET
+                </h1>
+                <p class="text-gray-300 text-sm mt-2">砲台を操作してターゲットを撃ち落とせ！</p>
+            </div>
+
+            <!-- Animated Graphic Preview -->
+            <div class="w-32 h-32 my-auto flex justify-center items-center relative">
+                <div class="absolute inset-0 border-2 border-dashed border-cyan-500/30 rounded-full animate-spin" style="animation-duration: 12s;"></div>
+                <i class="fas fa-crosshairs text-5xl text-pink-500 animate-pulse"></i>
+            </div>
+
+            <div class="w-full max-w-xs space-y-3 mb-4">
+                <button id="btn-start" class="pixel-btn w-full py-4 text-xl font-bold text-white rounded-lg flex items-center justify-center gap-2">
+                    <i class="fas fa-play"></i> ゲームスタート
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-show-rank" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 py-2.5 rounded-lg text-sm font-bold text-cyan-300 flex items-center justify-center gap-1">
+                        <i class="fas fa-list-ol"></i> ランキング
+                    </button>
+                    <button id="btn-show-qr" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 py-2.5 rounded-lg text-sm font-bold text-yellow-300 flex items-center justify-center gap-1">
+                        <i class="fas fa-qrcode"></i> QRコード
+                    </button>
+                </div>
+            </div>
+
+            <!-- Controls Info -->
+            <div class="text-xs text-gray-400 bg-slate-900/90 border border-slate-800 rounded-lg p-3 w-full max-w-xs text-center">
+                <p class="font-bold text-cyan-400 mb-1">【操作方法】</p>
+                <p>PC: マウス左右 / [←][→]移動, [Space]/クリックで発射</p>
+                <p>スマホ: 左右スワイプ移動, 発射ボタン</p>
+            </div>
+        </div>
+
+        <!-- RESULT SCREEN OVERLAY -->
+        <div id="screen-result" class="absolute inset-0 modal-bg flex flex-col justify-between items-center p-6 z-20 hidden">
+            <div class="text-center mt-4">
+                <h2 class="text-2xl font-bold font-pixel text-yellow-400 mb-1">TIME UP!</h2>
+                <p class="text-xs text-gray-400">ゲーム終了</p>
+            </div>
+
+            <!-- Score Display Box -->
+            <div class="bg-slate-900/90 border-2 border-cyan-500/50 rounded-xl p-4 w-full max-w-xs text-center my-auto shadow-xl">
+                <div class="text-xs text-cyan-400 mb-1 font-pixel">FINAL SCORE</div>
+                <div id="result-score" class="text-4xl font-extrabold font-pixel text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-amber-500 my-1">
+                    0
+                </div>
+                <div id="result-rank-status" class="text-xs text-pink-400 font-bold mt-2 h-4">
+                    -- 位にランクイン！
+                </div>
+
+                <!-- Nickname Input -->
+                <div id="nickname-section" class="mt-4 pt-3 border-t border-slate-800">
+                    <label for="input-nickname" class="block text-xs text-gray-300 mb-1">ランキング登録名 (最大10文字)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="input-nickname" maxlength="10" placeholder="プレイヤー名" 
+                               class="bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-white w-full focus:outline-none focus:border-cyan-400 text-center">
+                        <button id="btn-save-score" class="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-3 py-2 rounded text-xs shrink-0 flex items-center">
+                            登録
+                        </button>
+                    </div>
+                    <div id="register-msg" class="text-[10px] mt-1 text-cyan-400 h-3"></div>
+                </div>
+            </div>
+
+            <div class="w-full max-w-xs space-y-2 mb-2">
+                <button id="btn-retry" class="pixel-btn w-full py-3.5 text-lg font-bold text-white rounded-lg flex items-center justify-center gap-2">
+                    <i class="fas fa-redo"></i> もう一度遊ぶ
+                </button>
+                <button id="btn-to-title" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 w-full py-2.5 rounded-lg text-sm font-bold text-gray-300">
+                    タイトルに戻る
+                </button>
+            </div>
+        </div>
+
+        <!-- RANKING MODAL OVERLAY -->
+        <div id="modal-ranking" class="absolute inset-0 modal-bg flex flex-col justify-between items-center p-6 z-30 hidden">
+            <div class="w-full max-w-xs text-center mt-2">
+                <h2 class="text-xl font-bold font-pixel text-cyan-400 flex items-center justify-center gap-2">
+                    <i class="fas fa-crown text-yellow-400"></i> TOP 10 RANKING
+                </h2>
+                <p class="text-xs text-gray-400 mt-1">全国のハイレーティングプレイヤー</p>
+            </div>
+
+            <!-- Ranking List Container -->
+            <div class="w-full max-w-xs bg-slate-900/90 border border-slate-700 rounded-lg my-3 p-3 overflow-y-auto flex-1 max-h-[60vh]">
+                <div id="ranking-list" class="space-y-2">
+                    <!-- Dynamic rendering -->
+                    <div class="text-center text-xs text-gray-500 py-8">読み込み中...</div>
+                </div>
+            </div>
+
+            <button id="btn-close-rank" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 w-full max-w-xs py-3 rounded-lg text-sm font-bold text-white">
+                閉じる
+            </button>
+        </div>
+
+        <!-- QR CODE MODAL OVERLAY -->
+        <div id="modal-qr" class="absolute inset-0 modal-bg flex flex-col justify-between items-center p-6 z-30 hidden">
+            <div class="w-full max-w-xs text-center mt-2">
+                <h2 class="text-lg font-bold font-pixel text-yellow-400">スマホでプレイ！</h2>
+                <p class="text-xs text-gray-300 mt-1">QRコードを読み込んでゲームに参加！</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl my-auto shadow-2xl flex flex-col items-center">
+                <div id="qrcode" class="flex justify-center items-center"></div>
+                <p class="text-[10px] text-gray-500 mt-2 font-mono" id="qr-url-text">https://...</p>
+            </div>
+
+            <div class="w-full max-w-xs space-y-2">
+                <button id="btn-download-qr" class="bg-green-600 hover:bg-green-500 text-white w-full py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2">
+                    <i class="fas fa-download"></i> QR画像を保存 (PNG)
+                </button>
+                <button id="btn-close-qr" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 w-full py-2.5 rounded-lg text-xs font-bold text-white">
+                    閉じる
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase Configuration & Global Setup Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, getDocs, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // APP GLOBAL CONSTANTS & FIREBASE INIT
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'dot-shooting-game';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyDummyKeyForFallbackPublicOnly",
+                authDomain: "demo-project.firebaseapp.com",
+                projectId: "demo-project",
+                storageBucket: "demo-project.appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:abcdef"
+            };
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        let isFirebaseAvailable = false;
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // Auth Sign-In logic
+            const initAuth = async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            };
+            
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    isFirebaseAvailable = true;
+                    console.log("Firebase Auth Connected:", user.uid);
+                    listenToRanking();
+                }
+            });
+
+            initAuth().catch(err => {
+                console.warn("Firebase Auth Error, falling back to local mode:", err);
+            });
+        } catch (e) {
+            console.warn("Firebase Initialization skipped/failed. Local mode active:", e);
+        }
+
+        // Collection Reference Helper (Mandatory Rule 1 Path)
+        function getRankingCollectionRef() {
+            if (!db) return null;
+            return collection(db, 'artifacts', appId, 'public', 'data', 'rankings');
+        }
+
+        // Global Ranking State
+        let cachedRankings = [
+            { nickname: 'ACE', score: 1200 },
+            { nickname: 'PILOT', score: 950 },
+            { nickname: 'RETRO', score: 800 },
+            { nickname: 'SHOOTER', score: 650 },
+            { nickname: 'ROOKIE', score: 400 }
+        ];
+
+        // Listen to Firestore Rankings
+        function listenToRanking() {
+            const colRef = getRankingCollectionRef();
+            if (!colRef) return;
+
+            // Simple Query (Rule 2: No orderBy, filter/sort in JS)
+            onSnapshot(colRef, (snapshot) => {
+                const list = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.nickname && typeof data.score === 'number') {
+                        list.push(data);
+                    }
+                });
+                if (list.length > 0) {
+                    // Memory sort
+                    list.sort((a, b) => b.score - a.score);
+                    cachedRankings = list;
+                }
+                renderRankingList();
+            }, (error) => {
+                console.warn("Firestore snapshot error:", error);
+            });
+        }
+
+        // Save Score Function
+        window.saveScoreToCloud = async function(nickname, score) {
+            // Clean & sanitize input
+            const safeNickname = nickname.trim().replace(/[<>&"']/g, '').substring(0, 10) || "ゲスト";
+            
+            // Add to local state immediately
+            cachedRankings.push({ nickname: safeNickname, score: score });
+            cachedRankings.sort((a, b) => b.score - a.score);
+
+            if (isFirebaseAvailable && currentUser && db) {
+                try {
+                    const colRef = getRankingCollectionRef();
+                    await addDoc(colRef, {
+                        nickname: safeNickname,
+                        score: score,
+                        userId: currentUser.uid,
+                        createdAt: new Date().toISOString()
+                    });
+                } catch (err) {
+                    console.error("Failed to save score to Cloud:", err);
+                }
+            }
+            renderRankingList();
+            return safeNickname;
+        };
+
+        // Render Ranking Table
+        function renderRankingList() {
+            const container = document.getElementById('ranking-list');
+            if (!container) return;
+
+            const top10 = cachedRankings.slice(0, 10);
+            container.innerHTML = top10.map((item, index) => {
+                let badgeClass = "bg-slate-800 text-gray-300";
+                let icon = `${index + 1}`;
+                if (index === 0) { badgeClass = "bg-yellow-500/20 text-yellow-400 border border-yellow-500/50"; icon = "🥇 1"; }
+                else if (index === 1) { badgeClass = "bg-slate-300/20 text-slate-200 border border-slate-400/50"; icon = "🥈 2"; }
+                else if (index === 2) { badgeClass = "bg-amber-700/20 text-amber-500 border border-amber-600/50"; icon = "🥉 3"; }
+
+                return `
+                    <div class="flex justify-between items-center p-2 rounded ${badgeClass} text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="font-pixel text-[10px] w-8 text-center">${icon}</span>
+                            <span class="font-bold truncate max-w-[100px]">${escapeHtml(item.nickname)}</span>
+                        </div>
+                        <span class="font-pixel text-yellow-300">${item.score} pt</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+        }
+
+        window.renderRankingList = renderRankingList;
+    </script>
+
+    <!-- MAIN GAME LOGIC SCRIPT -->
+    <script>
+        // DOM ELEMENTS
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const screenTitle = document.getElementById('screen-title');
+        const screenResult = document.getElementById('screen-result');
+        const screenPause = document.getElementById('screen-pause');
+        const modalRanking = document.getElementById('modal-ranking');
+        const modalQr = document.getElementById('modal-qr');
+        const hud = document.getElementById('hud');
+        const hudScore = document.getElementById('hud-score');
+        const hudTimer = document.getElementById('hud-timer');
+        const comboDisplay = document.getElementById('combo-display');
+        const comboCount = document.getElementById('combo-count');
+        const touchControls = document.getElementById('touch-controls');
+        const btnFire = document.getElementById('btn-fire');
+        const btnPause = document.getElementById('btn-pause');
+        const btnResume = document.getElementById('btn-resume');
+        const btnGiveup = document.getElementById('btn-giveup');
+
+        // GAME ENGINE VARIABLES
+        let canvasWidth = 400;
+        let canvasHeight = 600;
+        let gameState = 'TITLE'; // TITLE, PLAYING, PAUSED, RESULT
+        let lastTime = 0;
+        let gameTimeLeft = 60;
+        let score = 0;
+        let combo = 0;
+        let comboTimer = 0;
+
+        // Entities
+        let player;
+        let bullets = [];
+        let targets = [];
+        let particles = [];
+        let stars = [];
+
+        // Input state
+        const keys = { left: false, right: false, space: false };
+        let touchX = null;
+
+        // Resize Canvas dynamically
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const rect = container.getBoundingClientRect();
+            canvasWidth = rect.width;
+            canvasHeight = rect.height;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            if (player) {
+                player.y = canvasHeight - 60;
+                player.x = Math.min(Math.max(player.x, player.width), canvasWidth - player.width);
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // INITIALIZATION
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < 40; i++) {
+                stars.push({
+                    x: Math.random() * canvasWidth,
+                    y: Math.random() * canvasHeight,
+                    size: Math.random() < 0.2 ? 2 : 1,
+                    speed: 0.5 + Math.random() * 1.5
+                });
+            }
+        }
+
+        // PLAYER CLASS
+        class Player {
+            constructor() {
+                this.width = 36;
+                this.height = 28;
+                this.x = canvasWidth / 2;
+                this.y = canvasHeight - 60;
+                this.speed = 350; // px / sec
+                this.lastShotTime = 0;
+                this.shootCooldown = 0.18; // Seconds between shots
+            }
+
+            update(dt) {
+                // Keyboard move
+                if (keys.left) this.x -= this.speed * dt;
+                if (keys.right) this.x += this.speed * dt;
+
+                // Touch drag target move
+                if (touchX !== null) {
+                    const diff = touchX - this.x;
+                    this.x += diff * 12 * dt; // Smooth interpolation
+                }
+
+                // Clamp boundaries
+                this.x = Math.max(this.width / 2, Math.min(canvasWidth - this.width / 2, this.x));
+
+                // Auto-fire / manual fire
+                if (keys.space) {
+                    this.shoot();
+                }
+            }
+
+            shoot() {
+                const now = performance.now() / 1000;
+                if (now - this.lastShotTime >= this.shootCooldown) {
+                    bullets.push(new Bullet(this.x, this.y - 12));
+                    this.lastShotTime = now;
+                    createMuzzleFlash(this.x, this.y - 12);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Pixel Cannon Graphic Design
+                ctx.fillStyle = '#38bdf8'; // Cyan top
+                ctx.fillRect(-4, -14, 8, 12);
+
+                ctx.fillStyle = '#0284c7'; // Main body
+                ctx.fillRect(-16, -2, 32, 14);
+
+                ctx.fillStyle = '#0369a1'; // Base dark
+                ctx.fillRect(-18, 8, 36, 6);
+
+                // Orange wing accents
+                ctx.fillStyle = '#f97316';
+                ctx.fillRect(-16, 2, 4, 8);
+                ctx.fillRect(12, 2, 4, 8);
+
+                // Core glow
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-2, 0, 4, 4);
+
+                ctx.restore();
+            }
+        }
+
+        // BULLET CLASS
+        class Bullet {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.speed = 600;
+                this.width = 4;
+                this.height = 12;
+                this.markedForDeletion = false;
+            }
+
+            update(dt) {
+                this.y -= this.speed * dt;
+                if (this.y < -20) this.markedForDeletion = true;
+            }
+
+            draw() {
+                ctx.fillStyle = '#facc15';
+                ctx.fillRect(this.x - this.width / 2, this.y, this.width, this.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(this.x - 1, this.y + 2, 2, this.height - 4);
+            }
+        }
+
+        // TARGET (ENEMY) CLASS
+        class Target {
+            constructor() {
+                this.width = 30;
+                this.height = 24;
+                this.x = Math.random() * (canvasWidth - 60) + 30;
+                this.y = -30;
+                
+                // Difficulty scaling over time
+                const timeFactor = (60 - gameTimeLeft) / 60; // 0 to 1
+                this.speedY = 40 + Math.random() * 50 + timeFactor * 60;
+                
+                // Behavior types: 0: Direct, 1: Sine wave, 2: Fast Zigzag
+                this.type = Math.random() < 0.4 ? 0 : (Math.random() < 0.7 ? 1 : 2);
+                this.sineAmplitude = 40 + Math.random() * 40;
+                this.sineFrequency = 2 + Math.random() * 2;
+                this.startX = this.x;
+                this.timeAlive = 0;
+                this.markedForDeletion = false;
+                
+                // Visual variation
+                this.color = this.type === 0 ? '#ef4444' : (this.type === 1 ? '#a855f7' : '#ec4899');
+            }
+
+            update(dt) {
+                this.timeAlive += dt;
+                this.y += this.speedY * dt;
+
+                if (this.type === 1) {
+                    this.x = this.startX + Math.sin(this.timeAlive * this.sineFrequency) * this.sineAmplitude;
+                } else if (this.type === 2) {
+                    this.x += Math.cos(this.timeAlive * 5) * 60 * dt;
+                }
+
+                // Bounce horizontally from screen edge
+                if (this.x < 20) this.x = 20;
+                if (this.x > canvasWidth - 20) this.x = canvasWidth - 20;
+
+                // Offscreen bottom reset
+                if (this.y > canvasHeight + 30) {
+                    this.markedForDeletion = true;
+                    combo = 0; // Reset combo on miss
+                    updateComboDisplay();
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // Pixel Alien Target
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-12, -8, 24, 16);
+                ctx.fillRect(-15, -2, 30, 8);
+
+                // Eyes
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-8, -4, 4, 6);
+                ctx.fillRect(4, -4, 4, 6);
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(-6, -2, 2, 4);
+                ctx.fillRect(6, -2, 2, 4);
+
+                // Antennas
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(-10, -12, 2, 4);
+                ctx.fillRect(8, -12, 2, 4);
+
+                ctx.restore();
+            }
+        }
+
+        // EXPLOSION PARTICLE SYSTEM
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = Math.floor(Math.random() * 4) + 2;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 120 + 30;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.life = 0.35; // seconds
+                this.maxLife = this.life;
+                this.markedForDeletion = false;
+            }
+
+            update(dt) {
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.life -= dt;
+                if (this.life <= 0) this.markedForDeletion = true;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function createMuzzleFlash(x, y) {
+            for (let i = 0; i < 5; i++) {
+                particles.push(new Particle(x, y, '#fef08a'));
+            }
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 20; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        // GAME LOOP & STATE MANAGEMENT
+        let targetSpawnTimer = 0;
+
+        function startGame() {
+            score = 0;
+            combo = 0;
+            gameTimeLeft = 60;
+            bullets = [];
+            targets = [];
+            particles = [];
+            player = new Player();
+
+            hudScore.textContent = '0000';
+            hudTimer.textContent = '60s';
+            comboDisplay.classList.add('hidden');
+
+            screenTitle.classList.add('hidden');
+            screenResult.classList.add('hidden');
+            screenPause.classList.add('hidden');
+            modalRanking.classList.add('hidden');
+            modalQr.classList.add('hidden');
+            hud.classList.remove('hidden');
+            touchControls.classList.remove('hidden');
+
+            gameState = 'PLAYING';
+        }
+
+        function pauseGame() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                screenPause.classList.remove('hidden');
+                touchControls.classList.add('hidden');
+            }
+        }
+
+        function resumeGame() {
+            if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                screenPause.classList.add('hidden');
+                touchControls.classList.remove('hidden');
+                lastTime = performance.now(); // Reset time delta
+            }
+        }
+
+        function giveUpGame() {
+            gameState = 'TITLE';
+            screenPause.classList.add('hidden');
+            hud.classList.add('hidden');
+            touchControls.classList.add('hidden');
+            screenTitle.classList.remove('hidden');
+        }
+
+        function gameOver() {
+            gameState = 'RESULT';
+            hud.classList.add('hidden');
+            touchControls.classList.add('hidden');
+
+            document.getElementById('result-score').textContent = score;
+            document.getElementById('input-nickname').value = '';
+            document.getElementById('register-msg').textContent = '';
+
+            // Calculate estimated local rank position
+            const rankings = window.cachedRankings || [];
+            let pos = 1;
+            for (let r of rankings) {
+                if (score < r.score) pos++;
+            }
+            document.getElementById('result-rank-status').textContent = `現在第 ${pos} 位相当のスコアです！`;
+
+            screenResult.classList.remove('hidden');
+        }
+
+        function updateComboDisplay() {
+            if (combo >= 2) {
+                comboCount.textContent = combo;
+                comboDisplay.classList.remove('hidden');
+            } else {
+                comboDisplay.classList.add('hidden');
+            }
+        }
+
+        function update(dt) {
+            // Update stars backdrop
+            stars.forEach(star => {
+                star.y += star.speed * (gameState === 'PLAYING' ? 2 : 0.5);
+                if (star.y > canvasHeight) {
+                    star.y = 0;
+                    star.x = Math.random() * canvasWidth;
+                }
+            });
+
+            if (gameState !== 'PLAYING') return;
+
+            // Timer update
+            gameTimeLeft -= dt;
+            if (gameTimeLeft <= 0) {
+                gameTimeLeft = 0;
+                gameOver();
+                return;
+            }
+            hudTimer.textContent = `${Math.ceil(gameTimeLeft)}s`;
+
+            // Player update
+            player.update(dt);
+
+            // Spawn Targets
+            targetSpawnTimer += dt;
+            const spawnInterval = Math.max(0.4, 1.2 - ((60 - gameTimeLeft) / 60) * 0.7);
+            if (targetSpawnTimer >= spawnInterval) {
+                targets.push(new Target());
+                targetSpawnTimer = 0;
+            }
+
+            // Update Bullets
+            bullets.forEach(b => b.update(dt));
+            bullets = bullets.filter(b => !b.markedForDeletion);
+
+            // Update Targets
+            targets.forEach(t => t.update(dt));
+            targets = targets.filter(t => !t.markedForDeletion);
+
+            // Update Particles
+            particles.forEach(p => p.update(dt));
+            particles = particles.filter(p => !p.markedForDeletion);
+
+            // Collision Detection
+            bullets.forEach(b => {
+                targets.forEach(t => {
+                    if (!b.markedForDeletion && !t.markedForDeletion) {
+                        // AABB Bounding Box Collision
+                        if (Math.abs(b.x - t.x) < (t.width / 2 + b.width / 2) &&
+                            Math.abs(b.y - t.y) < (t.height / 2 + b.height / 2)) {
+                            
+                            b.markedForDeletion = true;
+                            t.markedForDeletion = true;
+
+                            // Scoring & Combo System
+                            combo++;
+                            const comboBonus = Math.min(combo, 5) * 2;
+                            score += 10 + comboBonus;
+                            hudScore.textContent = String(score).padStart(4, '0');
+                            updateComboDisplay();
+
+                            createExplosion(t.x, t.y, t.color);
+                        }
+                    }
+                });
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            // Draw Background Stars
+            ctx.fillStyle = '#ffffff';
+            stars.forEach(s => {
+                ctx.fillRect(s.x, s.y, s.size, s.size);
+            });
+
+            if (gameState === 'PLAYING' || gameState === 'RESULT') {
+                targets.forEach(t => t.draw());
+                bullets.forEach(b => b.draw());
+                particles.forEach(p => p.draw());
+                if (player) player.draw();
+            }
+        }
+
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1); // Clamp delta time
+            lastTime = timestamp;
+
+            if (gameState !== 'PAUSED') {
+                update(dt);
+            }
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // INPUT LISTENERS (PC & TOUCH)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+            if (e.key === ' ' || e.key === 'Spacebar') {
+                keys.space = true;
+                if (gameState === 'PLAYING' && player) player.shoot();
+            }
+            if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+                if (gameState === 'PLAYING') pauseGame();
+                else if (gameState === 'PAUSED') resumeGame();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+            if (e.key === ' ' || e.key === 'Spacebar') keys.space = false;
+        });
+
+        // Mouse Move / Click Controls
+        canvas.addEventListener('mousemove', (e) => {
+            if (gameState === 'PLAYING' && player) {
+                const rect = canvas.getBoundingClientRect();
+                player.x = e.clientX - rect.left;
+            }
+        });
+
+        canvas.addEventListener('mousedown', () => {
+            if (gameState === 'PLAYING' && player) {
+                player.shoot();
+            }
+        });
+
+        // Touch Control handling for Mobile
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING' && e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                touchX = e.touches[0].clientX - rect.left;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING' && e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                touchX = e.touches[0].clientX - rect.left;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touchX = null;
+        }, { passive: false });
+
+        btnFire.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameState === 'PLAYING' && player) {
+                player.shoot();
+            }
+        }, { passive: false });
+
+        // BUTTON EVENT HANDLERS
+        document.getElementById('btn-start').addEventListener('click', startGame);
+        document.getElementById('btn-retry').addEventListener('click', startGame);
+        btnPause.addEventListener('click', pauseGame);
+        btnResume.addEventListener('click', resumeGame);
+        btnGiveup.addEventListener('click', giveUpGame);
+
+        document.getElementById('btn-to-title').addEventListener('click', () => {
+            screenResult.classList.add('hidden');
+            screenTitle.classList.remove('hidden');
+            gameState = 'TITLE';
+        });
+
+        document.getElementById('btn-show-rank').addEventListener('click', () => {
+            modalRanking.classList.remove('hidden');
+            if (window.renderRankingList) window.renderRankingList();
+        });
+
+        document.getElementById('btn-close-rank').addEventListener('click', () => {
+            modalRanking.classList.add('hidden');
+        });
+
+        // Save Nickname Event
+        document.getElementById('btn-save-score').addEventListener('click', async () => {
+            const nickInput = document.getElementById('input-nickname');
+            const msgEl = document.getElementById('register-msg');
+            const name = nickInput.value.trim();
+
+            if (!name) {
+                msgEl.textContent = '名前を入力してください！';
+                return;
+            }
+
+            msgEl.textContent = '保存中...';
+            const savedName = await window.saveScoreToCloud(name, score);
+            msgEl.textContent = `「${savedName}」で保存しました！`;
+            document.getElementById('btn-save-score').disabled = true;
+            document.getElementById('btn-save-score').classList.add('opacity-50');
+
+            setTimeout(() => {
+                modalRanking.classList.remove('hidden');
+            }, 800);
+        });
+
+        // QR CODE MODAL LOGIC
+        let qrCodeObj = null;
+        document.getElementById('btn-show-qr').addEventListener('click', () => {
+            // 現在のURLを取得
+            let currentUrl = window.location.href;
+            
+            // blob: などのプレビュー環境の場合、カメラで確実に認識できる形式に整形
+            if (currentUrl.startsWith('blob:') || currentUrl.startsWith('file:')) {
+                // 原則として公開用ドメイン(https)であることを意識したフォールバック表示
+                currentUrl = window.location.origin && window.location.origin !== 'null'
+                    ? window.location.origin + window.location.pathname
+                    : 'https://' + window.location.host;
+            }
+
+            // 表示テキストの更新
+            document.getElementById('qr-url-text').textContent = currentUrl;
+            
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            
+            // アカウント登録なしで直接ゲームが開くURLをQRコード化
+            setTimeout(() => {
+                try {
+                    qrCodeObj = new QRCode(qrContainer, {
+                        text: currentUrl,
+                        width: 180,
+                        height: 180,
+                        colorDark : "#0f172a",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.L // 読み取りエラーを防止するためエンコードレベルを調整
+                    });
+                } catch (e) {
+                    console.error("QR Code Generation Error:", e);
+                }
+            }, 50);
+
+            modalQr.classList.remove('hidden');
+        });
+
+        document.getElementById('btn-close-qr').addEventListener('click', () => {
+            modalQr.classList.add('hidden');
+        });
+
+        document.getElementById('btn-download-qr').addEventListener('click', () => {
+            // img要素またはcanvas要素から画像データを確実に取得してダウンロード
+            const img = document.querySelector('#qrcode img');
+            const canvasQr = document.querySelector('#qrcode canvas');
+            let dataUrl = null;
+
+            if (img && img.src && img.src.startsWith('data:image')) {
+                dataUrl = img.src;
+            } else if (canvasQr) {
+                dataUrl = canvasQr.toDataURL('image/png');
+            }
+
+            if (dataUrl) {
+                const link = document.createElement('a');
+                link.download = 'shooting-game-qr.png';
+                link.href = dataUrl;
+                link.click();
+            } else {
+                alert('QRコード画像の生成中です。少し待ってから再試行してください。');
+            }
+        });
+
+        // ON WINDOW LOAD INIT
+        window.onload = function() {
+            resizeCanvas();
+            initStars();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
