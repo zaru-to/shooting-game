@@ -22,6 +22,9 @@
             background-color: #0d0f18;
             color: #ffffff;
             overflow: hidden;
+            /* モバイルブラウザのアドレスバーによる画面ガタつきを防止 */
+            height: 100vh;
+            height: 100dvh;
         }
         .font-pixel {
             font-family: 'Press Start 2P', monospace;
@@ -56,13 +59,17 @@
             background-color: rgba(10, 10, 20, 0.88);
             backdrop-filter: blur(4px);
         }
+        /* Safe Area Padding for Mobile Bottom Nav Bars */
+        .safe-bottom {
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
         /* Touch friendly fixes */
         input, button {
             touch-action: manipulation;
         }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col justify-between items-center relative select-none">
+<body class="w-screen flex flex-col justify-between items-center relative select-none">
 
     <!-- GAME CANVAS CONTAINER -->
     <div id="game-container" class="relative w-full max-w-lg h-full flex flex-col justify-center items-center overflow-hidden">
@@ -110,12 +117,12 @@
             </div>
         </div>
 
-        <!-- TOUCH CONTROLS (Mobile overlay) -->
-        <div id="touch-controls" class="absolute bottom-4 left-0 right-0 px-6 flex justify-between items-center z-10 hidden md:hidden">
-            <div class="text-xs text-gray-400 bg-slate-900/70 p-2 rounded border border-gray-700">
+        <!-- TOUCH CONTROLS (Mobile overlay - Optimized for Safe Area) -->
+        <div id="touch-controls" class="absolute bottom-2 left-0 right-0 px-4 flex justify-between items-end z-10 hidden md:hidden safe-bottom pointer-events-none">
+            <div class="text-[11px] text-gray-300 bg-slate-900/85 p-2 rounded-lg border border-cyan-500/50 backdrop-blur pointer-events-auto mb-1">
                 <i class="fas fa-arrows-left-right text-cyan-400"></i> 左右スワイプ: 移動
             </div>
-            <button id="btn-fire" class="pixel-btn-action w-24 h-24 rounded-full font-pixel text-lg font-bold text-white flex items-center justify-center active:scale-95">
+            <button id="btn-fire" class="pixel-btn-action w-20 h-20 sm:w-24 sm:h-24 rounded-full font-pixel text-base sm:text-lg font-bold text-white flex items-center justify-center active:scale-95 shadow-2xl pointer-events-auto shrink-0 mb-1">
                 発射
             </button>
         </div>
@@ -970,9 +977,8 @@
             // 現在のURLを取得
             let currentUrl = window.location.href;
             
-            // blob: などのプレビュー環境の場合、カメラで確実に認識できる形式に整形
+            // blob: や file: などの一時的・ローカル環境の場合は案内用テキストを表示
             if (currentUrl.startsWith('blob:') || currentUrl.startsWith('file:')) {
-                // 原則として公開用ドメイン(https)であることを意識したフォールバック表示
                 currentUrl = window.location.origin && window.location.origin !== 'null'
                     ? window.location.origin + window.location.pathname
                     : 'https://' + window.location.host;
@@ -993,7 +999,7 @@
                         height: 180,
                         colorDark : "#0f172a",
                         colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.L // 読み取りエラーを防止するためエンコードレベルを調整
+                        correctLevel : QRCode.CorrectLevel.L
                     });
                 } catch (e) {
                     console.error("QR Code Generation Error:", e);
@@ -1008,7 +1014,6 @@
         });
 
         document.getElementById('btn-download-qr').addEventListener('click', () => {
-            // img要素またはcanvas要素から画像データを確実に取得してダウンロード
             const img = document.querySelector('#qrcode img');
             const canvasQr = document.querySelector('#qrcode canvas');
             let dataUrl = null;
@@ -1021,7 +1026,7 @@
 
             if (dataUrl) {
                 const link = document.createElement('a');
-                link.download = 'shooting-game-qr.png';
+                link.download = 'index-shooting-qr.png';
                 link.href = dataUrl;
                 link.click();
             } else {
